@@ -1,7 +1,7 @@
 // Using Alpha Vantage for stock data (free tier: 5 calls/min, 500 calls/day)
 // Get free API key at: https://www.alphavantage.co/support/#api-key
 
-const ALPHA_VANTAGE_KEY = process.env.ALPHA_VANTAGE_KEY;
+const ALPHA_VANTAGE_KEY = process.env.EXPO_PUBLIC_ALPHA_VANTAGE_KEY;
 const COINGECKO_API = 'https://api.coingecko.com/api/v3';
 
 // Get trending stocks by sector
