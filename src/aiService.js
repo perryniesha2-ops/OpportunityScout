@@ -1,9 +1,14 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { CONFIG } from './config';
 import { getTrendingCrypto, getTrendingStocks } from './marketService';
 
+
+
 const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,  dangerouslyAllowBrowser: true,
+  apiKey: CONFIG.ANTHROPIC_API_KEY,
+  dangerouslyAllowBrowser: true,
 });
+
 
 // Generate opportunities with real trend data
 export const generateOpportunities = async (category, userProfile) => {

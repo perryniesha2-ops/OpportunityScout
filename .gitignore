@@ -1,6 +1,7 @@
 # API Keys
 .env
 .env.local
+src/config.js
 
 # Expo
 node_modules/
