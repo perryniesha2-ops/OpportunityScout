@@ -2,8 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { getTrendingCrypto, getTrendingStocks } from './marketService';
 
 const anthropic = new Anthropic({
-  apiKey: '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', 
-  dangerouslyAllowBrowser: true,
+  apiKey: process.env.ANTHROPIC_API_KEY,  dangerouslyAllowBrowser: true,
 });
 
 // Generate opportunities with real trend data
