@@ -1,25 +1,32 @@
 // src/screens/OpportunitiesFeed.tsx
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   Dimensions,
+  Image as RNImage,
   SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from 'react-native';
 
+import { LOGO_DARK, LOGO_LIGHT } from '../branding';
 import type { Category, Opportunity } from '../services/aiService';
 import { generateOpportunities } from '../services/aiService';
 import { getSavedOpportunities, saveOpportunity } from '../services/supabase';
 import { useTheme } from '../theme';
 import { SCOUTA } from '../theme/tokens';
+
+
+
 
 const { width } = Dimensions.get('window');
 
@@ -85,63 +92,72 @@ type UserProfile = {
 };
 type Props = { navigation: any; userProfile: UserProfile };
 
+// cache key
+const cacheKey = (cat: Category) => `scouta_cache_opps_${cat}`;
+
 // ---------- component ----------
 const OpportunitiesFeed: React.FC<Props> = ({ navigation, userProfile }) => {
   const { isDark, colors } = useTheme();
+  const tabBarHeight = useBottomTabBarHeight();
+
   const [activeCategory, setActiveCategory] = useState<'all' | Category>('all');
   const [savedIds, setSavedIds] = useState<string[]>([]);
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [loading, setLoading] = useState(false);
   const [generatingCategory, setGeneratingCategory] = useState<Category | null>(null);
 
+
+  
+  // Only restore saved bookmarks; no API calls yet
   useEffect(() => {
     (async () => {
       try {
         const saved = await getSavedOpportunities();
         setSavedIds(saved.map((s: any) => String(s.opportunity_id)));
       } catch {
-        // non-blocking
+        /* ignore */
       }
     })();
   }, []);
 
+  // Restore last generated list from cache for user's first interest (optional, silent)
   useEffect(() => {
-    loadInitial();
+    (async () => {
+      const firstInterest = normalizeCategory(userProfile?.interests?.[0]);
+      const cached = await AsyncStorage.getItem(cacheKey(firstInterest));
+      if (cached) {
+        setActiveCategory(firstInterest);
+        setOpportunities(JSON.parse(cached));
+      }
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const loadInitial = async () => {
+  // Generate on demand
+  const generateNow = async (category: Category) => {
+    setGeneratingCategory(category);
     setLoading(true);
     try {
-      const firstInterest = normalizeCategory(userProfile?.interests?.[0]);
-      const ai = await generateOpportunities(firstInterest, userProfile);
-      setOpportunities(ai);
-    } catch {
-      setOpportunities(getMock());
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadForCategory = async (category: Category) => {
-    setGeneratingCategory(category);
-    try {
       const ai = await generateOpportunities(category, userProfile);
-      setOpportunities((prev) => [
-        ...prev.filter((o) => o.category !== category),
-        ...ai,
-      ]);
+      setActiveCategory(category);
+      setOpportunities(ai);
+      await AsyncStorage.setItem(cacheKey(category), JSON.stringify(ai));
     } catch {
       Alert.alert('Error', 'Failed to generate opportunities. Please try again.');
     } finally {
       setGeneratingCategory(null);
+      setLoading(false);
     }
   };
 
   const handleCategoryChange = (id: 'all' | Category) => {
     setActiveCategory(id);
-    if (id !== 'all' && !opportunities.some((o) => o.category === id)) {
-      loadForCategory(id);
+    if (id !== 'all') {
+      // Try to show cache if present; otherwise keep empty until user taps Generate
+      AsyncStorage.getItem(cacheKey(id)).then((cached) => {
+        if (cached) setOpportunities(JSON.parse(cached));
+        else setOpportunities([]); // clear list for that tab
+      });
     }
   };
 
@@ -150,7 +166,7 @@ const OpportunitiesFeed: React.FC<Props> = ({ navigation, userProfile }) => {
       await saveOpportunity(opp as any);
       setSavedIds((p) => [...p, String(opp.id)]);
     } catch {
-      // optional toast
+      /* optional toast */
     }
   };
 
@@ -189,14 +205,12 @@ const OpportunitiesFeed: React.FC<Props> = ({ navigation, userProfile }) => {
         ]}
       >
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <LinearGradient
-            colors={SCOUTA.grad as any}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.miniBadge}
-          >
-            <Text style={{ fontSize: 14 }}>🐶</Text>
-          </LinearGradient>
+         <RNImage
+  source={isDark ? LOGO_DARK : LOGO_LIGHT}
+  resizeMode="contain"
+  style={{ width: 72, height: 72 }}
+/>
+
           <Text style={[styles.feedTitle, { color: colors.text, marginLeft: 8 }]}>
             Opportunities
           </Text>
@@ -204,7 +218,7 @@ const OpportunitiesFeed: React.FC<Props> = ({ navigation, userProfile }) => {
         <Ionicons name="search" size={24} color={colors.text} />
       </View>
 
-      {/* categories (trim height + spacing) */}
+      {/* categories */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -253,18 +267,34 @@ const OpportunitiesFeed: React.FC<Props> = ({ navigation, userProfile }) => {
         })}
       </ScrollView>
 
-      {/* list */}
+      {/* generate on demand */}
+      {activeCategory !== 'all' && (
+        <View style={[styles.generateRow, { backgroundColor: colors.background }]}>
+          <GradientButtonSm
+            onPress={() => generateNow(activeCategory as Category)}
+            disabled={!!generatingCategory}
+            style={{ opacity: generatingCategory ? 0.6 : 1 }}
+          >
+            {generatingCategory ? 'Generating…' : `Generate ${activeCategory} ideas`}
+          </GradientButtonSm>
+          <Text style={{ color: colors.secondaryText, fontSize: 12 }}>
+            We only fetch when you tap Generate.
+          </Text>
+        </View>
+      )}
+
+      {/* list (cached or generated) */}
       {loading && opportunities.length === 0 ? (
         <View style={[styles.centerContent, { flex: 1 }]}>
           <ActivityIndicator size="large" color={SCOUTA.primary} />
           <Text style={[styles.loadingText, { color: colors.secondaryText }]}>
-            Generating personalized opportunities...
+            Working on it…
           </Text>
         </View>
       ) : (
         <ScrollView
           style={styles.feedScroll}
-          contentContainerStyle={{ paddingTop: 8, paddingBottom: 24 }} // trimmed extra space here
+          contentContainerStyle={{ paddingTop: 8, paddingBottom: tabBarHeight + 16 }} // keep above tab bar
         >
           {filtered.length === 0 ? (
             <View style={styles.emptyState}>
@@ -273,7 +303,7 @@ const OpportunitiesFeed: React.FC<Props> = ({ navigation, userProfile }) => {
                 No opportunities yet
               </Text>
               <Text style={[styles.emptyText, { color: colors.secondaryText }]}>
-                Tap a category above to generate AI-powered opportunities
+                Pick a category above, then tap <Text style={{ fontWeight: '800' }}>Generate</Text>.
               </Text>
             </View>
           ) : (
@@ -348,11 +378,7 @@ const OpportunitiesFeed: React.FC<Props> = ({ navigation, userProfile }) => {
                         key={i}
                         style={[
                           styles.tag,
-                          {
-                            backgroundColor: isDark
-                              ? 'rgba(124,92,255,0.18)'
-                              : '#E8E4FF',
-                          },
+                          { backgroundColor: isDark ? 'rgba(124,92,255,0.18)' : '#E8E4FF' },
                         ]}
                       >
                         <Text style={[styles.tagText, { color: SCOUTA.primary }]}>{tag}</Text>
@@ -405,41 +431,12 @@ const OpportunitiesFeed: React.FC<Props> = ({ navigation, userProfile }) => {
       )}
     </SafeAreaView>
   );
-
-  // local mock if signals are empty
-  function getMock(): Opportunity[] {
-    return [
-      {
-        id: 1,
-        category: 'social',
-        title: 'AI Art Generation Content',
-        trend: 'Rising Fast',
-        score: 92,
-        competition: 'Low',
-        potential: 'High',
-        timeframe: '2-4 weeks',
-        description:
-          'Create tutorials and showcases for AI art tools like Midjourney and DALL·E.',
-        tags: ['TikTok', 'Instagram', 'AI'],
-      },
-      {
-        id: 2,
-        category: 'hobbies',
-        title: 'Indoor Plant Care Niche',
-        trend: 'Steady Growth',
-        score: 85,
-        competition: 'Medium',
-        potential: 'Medium',
-        timeframe: '4-8 weeks',
-        description:
-          'Content and small products for rare houseplant enthusiasts.',
-        tags: ['YouTube', 'Newsletter', 'Community'],
-      },
-    ];
-  }
 };
 
 export default OpportunitiesFeed;
+
+
+
 
 // ---------- styles ----------
 const styles = StyleSheet.create({
@@ -474,6 +471,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
+  generateRow: {
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 6,
+    gap: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
   categoryChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -493,9 +500,7 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
 
-  feedScroll: {
-    // no flex here; we control bottom space via contentContainerStyle
-  },
+  feedScroll: {},
 
   opportunityCard: {
     margin: 16,

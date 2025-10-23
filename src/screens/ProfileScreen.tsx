@@ -1,26 +1,26 @@
+// src/screens/ProfileScreen.tsx
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Appearance, Platform, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { getUserProfile, supabase } from '../services/supabase';
+import {
+  ActivityIndicator,
+  Image,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 
-
-const SCOUTA = { grad: ['#7C5CFF', '#00E5FF', '#FF5CA8'], primary: '#7C5CFF' };
-const lightColors = { background: '#F8F9FA', card: '#FFFFFF', text: '#2D3436', secondaryText: '#636E72', border: '#E0E0E0' };
-const darkColors = { background: '#0F111A', card: '#1A1C28', text: '#FFFFFF', secondaryText: '#B2BEC3', border: '#2A2E3C' };
-const useLocalTheme = () => {
-  const isDark = Appearance.getColorScheme() === 'dark';
-  const [dark, setDark] = useState(isDark);
-  return {
-    isDark: dark,
-    colors: dark ? darkColors : lightColors,
-    toggleTheme: () => setDark((p) => !p),
-  };
-};
+import { LOGO_DARK, LOGO_LIGHT } from '../branding';
+import SignOutButton from '../components/SignOutButton';
+import { getUserProfile } from '../services/supabase';
+import { useTheme } from '../theme';
+import { SCOUTA } from '../theme/tokens';
 
 const ProfileScreen: React.FC = () => {
-  const { isDark, colors, toggleTheme } = useLocalTheme();
+  const { isDark, colors, toggleTheme } = useTheme();
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -29,25 +29,11 @@ const ProfileScreen: React.FC = () => {
       try {
         const p = await getUserProfile();
         setProfile(p);
-      } catch (e) {
       } finally {
         setLoading(false);
       }
     })();
   }, []);
-
-  const handleThemeToggle = async () => {
-    const next = !isDark;
-    toggleTheme();
-    try { await AsyncStorage.setItem('scouta_theme', next ? 'dark' : 'light'); } catch {}
-  };
-
-  const handleSignOut = async () => {
-    try {
-      await supabase.auth.signOut();
-      if (Platform.OS === 'web') window.location.reload();
-    } catch {}
-  };
 
   if (loading) {
     return (
@@ -58,51 +44,82 @@ const ProfileScreen: React.FC = () => {
     );
   }
 
-  const interestLabels: Record<string, string> = { social: 'Social Media', hobbies: 'Hobbies', business: 'Side Hustles', stocks: 'Stocks & Crypto' };
+  const interestLabels: Record<string, string> = {
+    social: 'Social Media',
+    hobbies: 'Hobbies',
+    business: 'Side Hustles',
+    stocks: 'Stocks & Crypto',
+  };
   const skillLabels: any = { beginner: 'Beginner', intermediate: 'Intermediate', expert: 'Expert' };
-  const timeLabels: any = { casual: '1-5 hrs/week', serious: '5-15 hrs/week', fulltime: '15+ hrs/week' };
+  const timeLabels: any = { casual: '1–5 hrs/week', serious: '5–15 hrs/week', fulltime: '15+ hrs/week' };
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 32 }]}>
+        {/* Header with brand logo (dark variant requested) */}
         <View style={styles.header}>
-          <LinearGradient colors={['#7C5CFF', '#00E5FF', '#FF5CA8'] as const} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.avatar}>
-            <Text style={{ fontSize: 34 }}>🐶</Text>
-          </LinearGradient>
-          <Text style={{ color: colors.secondaryText }}>{profile?.email || 'Anonymous User'}</Text>
+          <View style={[styles.logoWrap, { backgroundColor: colors.background, borderColor: colors.border }]}>
+            <Image source={isDark ? LOGO_DARK : LOGO_LIGHT} resizeMode="contain" style={{ width: 72, height: 72 }} />
+          </View>
+          <Text style={{ color: colors.secondaryText, marginTop: 8 }}>
+            {profile?.email || 'Anonymous User'}
+          </Text>
         </View>
 
+        {/* Interests */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: '#B2BEC3' }]}>Interests</Text>
+          <Text style={[styles.sectionTitle, { color: colors.secondaryText }]}>Interests</Text>
           <View style={styles.tags}>
-            {profile?.interests?.map((i: string) => (
-              <View key={i} style={styles.tag}><Text style={styles.tagText}>{interestLabels[i] ?? i}</Text></View>
+            {(profile?.interests || []).map((i: string) => (
+              <View
+                key={i}
+                style={[
+                  styles.tag,
+                  { backgroundColor: isDark ? 'rgba(124,92,255,0.18)' : '#E8E4FF', borderColor: colors.border },
+                ]}
+              >
+                <Text style={[styles.tagText, { color: SCOUTA.primary }]}>
+                  {interestLabels[i] ?? i}
+                </Text>
+              </View>
             ))}
           </View>
         </View>
 
+        {/* Skill */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: '#B2BEC3' }]}>Experience Level</Text>
-          <Text style={[styles.value, { color: colors.text }]}>{skillLabels[profile?.skill_level]}</Text>
+          <Text style={[styles.sectionTitle, { color: colors.secondaryText }]}>Experience Level</Text>
+          <View style={[styles.valueCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={[styles.value, { color: colors.text }]}>{skillLabels[profile?.skill_level] || '—'}</Text>
+          </View>
         </View>
 
+        {/* Time */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: '#B2BEC3' }]}>Time Commitment</Text>
-          <Text style={[styles.value, { color: colors.text }]}>{timeLabels[profile?.time_available]}</Text>
+          <Text style={[styles.sectionTitle, { color: colors.secondaryText }]}>Time Commitment</Text>
+          <View style={[styles.valueCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={[styles.value, { color: colors.text }]}>{timeLabels[profile?.time_available] || '—'}</Text>
+          </View>
         </View>
 
+        {/* Theme toggle */}
         <View style={styles.section}>
-          <TouchableOpacity style={[styles.item, { backgroundColor: colors.card }]} onPress={handleThemeToggle}>
-            <Ionicons name={isDark ? 'sunny' : 'moon'} size={24} color={colors.text} />
-            <Text style={[styles.itemText, { color: colors.text }]}>{isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}</Text>
-            <Ionicons name="chevron-forward" size={24} color="#B2BEC3" />
+          <TouchableOpacity
+            style={[styles.item, { backgroundColor: colors.card, borderColor: colors.border }]}
+            onPress={toggleTheme}
+            activeOpacity={0.9}
+          >
+            <Ionicons name={isDark ? 'sunny' : 'moon'} size={22} color={colors.text} />
+            <Text style={[styles.itemText, { color: colors.text }]}>
+              {isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            </Text>
+            <Ionicons name="chevron-forward" size={20} color={colors.secondaryText} />
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity style={styles.signOut} onPress={handleSignOut}>
-          <Text style={styles.signOutText}>Reset App</Text>
-        </TouchableOpacity>
+        {/* Global sign out */}
+        <SignOutButton title="Sign Out" />
       </ScrollView>
     </SafeAreaView>
   );
@@ -114,16 +131,54 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { justifyContent: 'center', alignItems: 'center' },
   content: { padding: 24 },
+
   header: { alignItems: 'center', marginBottom: 28 },
-  avatar: { width: 84, height: 84, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
+  logoWrap: {
+    width: 92,
+    height: 92,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+
   section: { marginBottom: 24 },
-  sectionTitle: { fontSize: 14, fontWeight: '800', marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 },
+  sectionTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    marginBottom: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+
   tags: { flexDirection: 'row', flexWrap: 'wrap' },
-  tag: { backgroundColor: SCOUTA.primary, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, marginRight: 8, marginBottom: 8 },
-  tagText: { color: '#FFF', fontWeight: '800' },
+  tag: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 16,
+    marginRight: 8,
+    marginBottom: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  tagText: { fontSize: 12, fontWeight: '800' },
+
+  valueCard: {
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
   value: { fontSize: 16, fontWeight: '700' },
-  item: { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 12, marginBottom: 8 },
+
+  item: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
   itemText: { flex: 1, fontSize: 16, marginLeft: 12 },
-  signOut: { backgroundColor: '#FF3B30', padding: 16, borderRadius: 12, alignItems: 'center', marginTop: 16 },
-  signOutText: { color: '#FFF', fontSize: 16, fontWeight: '800' },
 });
