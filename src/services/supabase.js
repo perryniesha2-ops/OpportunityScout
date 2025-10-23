@@ -2,7 +2,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
 import 'react-native-url-polyfill/auto';
-import { CONFIG } from './config';
+import { CONFIG } from '../config';
 
 export const supabase = createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY, {
   auth: {
@@ -120,27 +120,44 @@ export const getUserProfile = async () => {
 };
 
 // Save an opportunity
+// src/services/supabase.js
 export const saveOpportunity = async (opportunity) => {
   const { data: { user }, error: userErr } = await supabase.auth.getUser();
   if (userErr) throw userErr;
   if (!user) throw new Error('Not authenticated');
 
+  // Build a safe row that matches your DB schema
+  const payload = {
+    user_id: user.id,                                      // uuid
+    opportunity_id: String(opportunity.id),                // text
+    title: String(opportunity.title ?? ''),                // text (ensure not null)
+    category: String(opportunity.category ?? 'other'),     // text or enum value
+    score: Number.isFinite(+opportunity.score)
+      ? Math.round(+opportunity.score)
+      : null,                                              // works if column is nullable
+    status: 'saved',                                       // must exist in your enum if using one
+    saved_at: new Date().toISOString(),                    // optional if column has default now()
+  };
+
   const { data, error } = await supabase
     .from('saved_opportunities')
-    .insert({
-      user_id: user.id,
-      opportunity_id: opportunity.id.toString(),
-      category: opportunity.category,
-      title: opportunity.title,
-      score: opportunity.score,
-      status: 'saved',
-    })
+    .upsert(payload, { onConflict: 'user_id,opportunity_id' })
     .select()
     .single();
 
-  if (error) throw error;
+  if (error) {
+    console.error('saveOpportunity failed:', {
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      code: error.code,
+    });
+    throw error;
+  }
+
   return data;
 };
+
 
 // Get saved opportunities
 export const getSavedOpportunities = async () => {
