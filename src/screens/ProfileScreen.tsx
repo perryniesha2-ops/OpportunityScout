@@ -14,10 +14,12 @@ import {
 } from 'react-native';
 
 import { LOGO_DARK, LOGO_LIGHT } from '../branding';
+import LegalLinks from '../components/LegalLinks';
 import SignOutButton from '../components/SignOutButton';
 import { getUserProfile } from '../services/supabase';
 import { useTheme } from '../theme';
 import { SCOUTA } from '../theme/tokens';
+
 
 const ProfileScreen: React.FC = () => {
   const { isDark, colors, toggleTheme } = useTheme();
@@ -121,6 +123,7 @@ const ProfileScreen: React.FC = () => {
         {/* Global sign out */}
         <SignOutButton title="Sign Out" />
       </ScrollView>
+       <LegalLinks />
     </SafeAreaView>
   );
 };

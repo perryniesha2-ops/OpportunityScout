@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 import { LOGO_DARK } from '../branding';
 import GradientButton from '../components/GradientButton';
+import LegalLinks from '../components/LegalLinks';
 import { BRAND, useTheme } from '../theme';
 
 const TEASERS = [
@@ -183,7 +184,9 @@ const rotateTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
         <Text style={[styles.footer, { color: colors.secondaryText, opacity: 0.6 }]}>
           Powered by Scouta AI • Beta
         </Text>
+        
       </View>
+       <LegalLinks />
     </View>
   );
 }
